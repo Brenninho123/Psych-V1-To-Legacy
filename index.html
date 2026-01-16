@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Psych V1 to Legacy</title>
+<style>
+    body { font-family: Arial, sans-serif; background: #121212; color: #eee; padding: 20px; }
+    h1 { color: #00ff99; }
+    input, button { margin-top: 10px; padding: 8px; font-size: 16px; }
+    #dropArea {
+        margin-top: 20px;
+        padding: 40px;
+        border: 2px dashed #00ff99;
+        text-align: center;
+        color: #aaa;
+        transition: background 0.3s;
+    }
+    #dropArea.dragover { background: #1f1f1f; color: #00ff99; }
+    pre { background: #222; padding: 10px; overflow-x: auto; max-height: 300px; white-space: pre-wrap; }
+    .success { color: #00ff00; }
+    .error { color: #ff5555; }
+</style>
+</head>
+<body>
+<h1>Psych V1 to Legacy</h1>
+<p>Arraste e solte arquivos JSON ou clique para selecionar múltiplos arquivos.</p>
+
+<input type="file" id="fileInput" accept=".json" multiple>
+<div id="dropArea">Ou arraste os arquivos aqui</div>
+
+<pre id="output"></pre>
+
+<script>
+const dropArea = document.getElementById('dropArea');
+const fileInput = document.getElementById('fileInput');
+const output = document.getElementById('output');
+
+// Previne comportamento padrão para drag & drop
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+    dropArea.addEventListener(eventName, e => e.preventDefault());
+    document.body.addEventListener(eventName, e => e.preventDefault());
+});
+
+dropArea.addEventListener('dragover', () => dropArea.classList.add('dragover'));
+dropArea.addEventListener('dragleave', () => dropArea.classList.remove('dragover'));
+dropArea.addEventListener('drop', e => {
+    dropArea.classList.remove('dragover');
+    handleFiles(e.dataTransfer.files);
+});
+
+fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+
+function handleFiles(files) {
+    output.textContent = '';
+    for (let file of files) {
+        if (!file.name.endsWith('.json')) {
+            output.textContent += `❌ Ignorando ${file.name} (não é JSON)\n`;
+            continue;
+        }
+        convertFile(file);
+    }
+}
+
+function convertFile(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            let chart = JSON.parse(e.target.result);
+
+            // Converte notas
+            if (chart.notes) {
+                chart.notes.forEach(section => {
+                    if (section.sectionNotes && section.sectionNotes.length > 0) {
+                        section.sectionNotes.forEach(notes => {
+                            if (!section.mustHitSection) {
+                                if (notes[1] > 3) notes[1] = notes[1] % 4;
+                                else notes[1] += 4;
+                            }
+                        });
+                    }
+                });
+            }
+
+            // Marca formato
+            chart.format = 'psych_legacy_convert';
+
+            const finalJson = JSON.stringify({ song: chart }, null, 4);
+
+            // Define nome do arquivo convertido
+            let fileName = file.name === "events.json" ? "-events.json" : file.name;
+
+            // Cria download
+            const blob = new Blob([finalJson], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = fileName;
+            a.click();
+
+            output.textContent += `✅ ${file.name} convertido com sucesso!\n`;
+            output.className = "success";
+        } catch (err) {
+            output.textContent += `❌ Erro ao converter ${file.name}: ${err}\n`;
+            output.className = "error";
+        }
+    };
+    reader.readAsText(file);
+}
+</script>
+</body>
+</html>
